@@ -38,7 +38,10 @@ authenticator = stauth.Authenticate(
     cookie_cfg["expiry_days"],
 )
 
-name, auth_status, username = authenticator.login("Login", "main")
+name, auth_status, username = authenticator.login(
+    fields={"Form name": "Login", "Username": "Username", "Password": "Password", "Login": "Login"}
+)
+
 if not auth_status:
     st.stop()
 
@@ -605,6 +608,7 @@ st.sidebar.download_button(
     file_name="alerts.csv",
     mime="text/csv",
 )
+
 
 
 
