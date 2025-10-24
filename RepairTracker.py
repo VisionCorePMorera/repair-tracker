@@ -6,6 +6,27 @@ import re
 
 # ------------------ App setup ------------------
 st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
+
+import streamlit_authenticator as stauth
+
+# ---- Login guard ----
+try:
+    auth_cfg = st.secrets["auth"]  # provided via Render secret file: secrets.toml
+    authenticator = stauth.Authenticate(
+        auth_cfg["credentials"],
+        auth_cfg["cookie"]["name"],
+        auth_cfg["cookie"]["key"],
+        auth_cfg["cookie"]["expiry_days"],
+    )
+    name, auth_status, username = authenticator.login("Login", "main")
+    if not auth_status:
+        st.stop()  # stop the app until logged in
+    authenticator.logout("Logout", "sidebar")
+    st.caption(f"Signed in as {name}")
+except Exception:
+    st.error("Auth not configured. Add secrets.toml with [auth] settings, then redeploy.")
+    st.stop()
+    
 st.title("🔧 Repair Tracker")
 APP_DIR = Path(__file__).parent
 REPAIRS_CSV = APP_DIR / "repairs_data.csv"
@@ -565,3 +586,4 @@ st.sidebar.download_button(
     file_name="alerts.csv",
     mime="text/csv",
 )
+
