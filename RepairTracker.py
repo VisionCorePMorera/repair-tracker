@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, date
 from pathlib import Path
 import re
+import streamlit_authenticator as stauth 
 
 # ------------------ App setup ------------------
 st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
@@ -586,4 +587,5 @@ st.sidebar.download_button(
     file_name="alerts.csv",
     mime="text/csv",
 )
+
 
