@@ -9,30 +9,34 @@ import streamlit_authenticator as stauth
 st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
 
 # ---- Login guard ----
-cfg = st.secrets.get("auth")
-if not cfg:
+def to_plain(obj):
+    # turn Streamlit Secrets (and any nested mappings) into normal dicts
+    try:
+        return {k: to_plain(v) for k, v in obj.items()}
+    except Exception:
+        return obj
+
+cfg_plain = to_plain(st.secrets.get("auth", {}))
+if not cfg_plain:
     st.error("No [auth] block found in .streamlit/secrets.toml")
     st.stop()
 
-# Validate required keys early
 required_cookie_keys = {"name", "key", "expiry_days"}
-if "cookie" not in cfg or not required_cookie_keys.issubset(cfg["cookie"].keys()):
+cookie_cfg = cfg_plain.get("cookie", {})
+creds_cfg  = cfg_plain.get("credentials", {})
+if not required_cookie_keys.issubset(cookie_cfg.keys()):
     st.error("Missing cookie settings in secrets.toml under [auth.cookie]")
     st.stop()
-if "credentials" not in cfg or "usernames" not in cfg["credentials"]:
+if "usernames" not in creds_cfg:
     st.error("Missing credentials in secrets.toml under [auth.credentials.usernames]")
     st.stop()
 
-try:
-    authenticator = stauth.Authenticate(
-        cfg["credentials"],
-        cfg["cookie"]["name"],
-        cfg["cookie"]["key"],
-        cfg["cookie"]["expiry_days"],
-    )
-except Exception as e:
-    st.error(f"Authenticator init error: {e}")
-    st.stop()
+authenticator = stauth.Authenticate(
+    creds_cfg,                        # now a mutable plain dict
+    cookie_cfg["name"],
+    cookie_cfg["key"],
+    cookie_cfg["expiry_days"],
+)
 
 name, auth_status, username = authenticator.login("Login", "main")
 if not auth_status:
@@ -601,6 +605,7 @@ st.sidebar.download_button(
     file_name="alerts.csv",
     mime="text/csv",
 )
+
 
 
 
