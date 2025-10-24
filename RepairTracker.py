@@ -3,36 +3,50 @@ import pandas as pd
 from datetime import datetime, date
 from pathlib import Path
 import re
-import streamlit_authenticator as stauth 
+import streamlit_authenticator as stauth
 
 # ------------------ App setup ------------------
 st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
 
-import streamlit_authenticator as stauth
-
 # ---- Login guard ----
-try:
-    auth_cfg = st.secrets["auth"]  # provided via Render secret file: secrets.toml
-    authenticator = stauth.Authenticate(
-        auth_cfg["credentials"],
-        auth_cfg["cookie"]["name"],
-        auth_cfg["cookie"]["key"],
-        auth_cfg["cookie"]["expiry_days"],
-    )
-    name, auth_status, username = authenticator.login("Login", "main")
-    if not auth_status:
-        st.stop()  # stop the app until logged in
-    authenticator.logout("Logout", "sidebar")
-    st.caption(f"Signed in as {name}")
-except Exception:
-    st.error("Auth not configured. Add secrets.toml with [auth] settings, then redeploy.")
+cfg = st.secrets.get("auth")
+if not cfg:
+    st.error("No [auth] block found in .streamlit/secrets.toml")
     st.stop()
-    
+
+# Validate required keys early
+required_cookie_keys = {"name", "key", "expiry_days"}
+if "cookie" not in cfg or not required_cookie_keys.issubset(cfg["cookie"].keys()):
+    st.error("Missing cookie settings in secrets.toml under [auth.cookie]")
+    st.stop()
+if "credentials" not in cfg or "usernames" not in cfg["credentials"]:
+    st.error("Missing credentials in secrets.toml under [auth.credentials.usernames]")
+    st.stop()
+
+try:
+    authenticator = stauth.Authenticate(
+        cfg["credentials"],
+        cfg["cookie"]["name"],
+        cfg["cookie"]["key"],
+        cfg["cookie"]["expiry_days"],
+    )
+except Exception as e:
+    st.error(f"Authenticator init error: {e}")
+    st.stop()
+
+name, auth_status, username = authenticator.login("Login", "main")
+if not auth_status:
+    st.stop()
+
+authenticator.logout("Logout", "sidebar")
+st.caption(f"Signed in as {name}")
+
 st.title("🔧 Repair Tracker")
+
 APP_DIR = Path(__file__).parent
 REPAIRS_CSV = APP_DIR / "repairs_data.csv"
-TRUCKS_CSV = APP_DIR / "trucks_data.csv"
-ALERTS_CSV = APP_DIR / "alerts_data.csv"
+TRUCKS_CSV  = APP_DIR / "trucks_data.csv"
+ALERTS_CSV  = APP_DIR / "alerts_data.csv"
 BACKUPS_DIR = APP_DIR / "Backups"
 BACKUPS_DIR.mkdir(exist_ok=True)
 
@@ -587,5 +601,6 @@ st.sidebar.download_button(
     file_name="alerts.csv",
     mime="text/csv",
 )
+
 
 
