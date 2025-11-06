@@ -5,6 +5,54 @@ from pathlib import Path
 import re
 
 # -------------------------------------------------------
+# LOGIN GUARD
+# -------------------------------------------------------
+def _to_plain(obj):
+    # Convert Streamlit Secrets (and nested mappings) to normal dicts
+    try:
+        return {k: _to_plain(v) for k, v in obj.items()}
+    except Exception:
+        return obj
+
+cfg_plain = _to_plain(st.secrets.get("auth", {}))
+if not cfg_plain:
+    st.error("No [auth] block found in secrets.toml")
+    st.stop()
+
+cookie_cfg = cfg_plain.get("cookie", {})
+creds_cfg = cfg_plain.get("credentials", {})
+
+required_cookie_keys = {"name", "key", "expiry_days"}
+if not required_cookie_keys.issubset(cookie_cfg.keys()):
+    st.error("Missing cookie settings in [auth.cookie]")
+    st.stop()
+if "usernames" not in creds_cfg:
+    st.error("Missing usernames under [auth.credentials.usernames]")
+    st.stop()
+
+authenticator = stauth.Authenticate(
+    creds_cfg,
+    cookie_cfg["name"],
+    cookie_cfg["key"],
+    cookie_cfg["expiry_days"],
+)
+
+name, auth_status, username = authenticator.login(
+    fields={
+        "Form name": "Login",
+        "Username": "Username",
+        "Password": "Password",
+        "Login": "Login",
+    }
+)
+
+if not auth_status:
+    st.stop()
+
+authenticator.logout("Logout", "sidebar")
+st.caption(f"Signed in as {name}")
+
+# -------------------------------------------------------
 # CONFIG
 # -------------------------------------------------------
 st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
