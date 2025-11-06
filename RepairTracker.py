@@ -3,6 +3,12 @@ import pandas as pd
 from datetime import datetime, date
 from pathlib import Path
 import re
+import streamlit_authenticator as stauth
+
+# -------------------------------------------------------
+# CONFIG
+# -------------------------------------------------------
+st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
 
 # -------------------------------------------------------
 # LOGIN GUARD
@@ -53,9 +59,8 @@ authenticator.logout("Logout", "sidebar")
 st.caption(f"Signed in as {name}")
 
 # -------------------------------------------------------
-# CONFIG
+# APP PATHS
 # -------------------------------------------------------
-st.set_page_config(page_title="Repair Tracker", page_icon="🔧", layout="wide")
 st.title("🔧 Repair Tracker")
 APP_DIR = Path(__file__).parent
 REPAIRS_CSV = APP_DIR / "repairs_data.csv"
@@ -179,7 +184,7 @@ action = st.sidebar.selectbox(
 if action == "View & Edit Repairs":
     st.subheader("View & Edit Repairs")
 
-    # --- Filters ---
+    # Filters
     with st.expander("Filters", expanded=True):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -191,12 +196,16 @@ if action == "View & Edit Repairs":
         with c3:
             query = st.text_input("Search text (Desc / Notes / Issue)").strip()
 
-    # --- Filter logic ---
+    # Filter logic
     view_df = df_repairs.copy()
-    if f_status: view_df = view_df[view_df["Status"].isin(f_status)]
-    if f_assigned: view_df = view_df[view_df["Assigned to"].isin(f_assigned)]
-    if f_unit: view_df = view_df[view_df["Unit #"].isin(f_unit)]
-    if f_priority: view_df = view_df[view_df["Priority Tier (1/2/3)"].isin(f_priority)]
+    if f_status:
+        view_df = view_df[view_df["Status"].isin(f_status)]
+    if f_assigned:
+        view_df = view_df[view_df["Assigned to"].isin(f_assigned)]
+    if f_unit:
+        view_df = view_df[view_df["Unit #"].isin(f_unit)]
+    if f_priority:
+        view_df = view_df[view_df["Priority Tier (1/2/3)"].isin(f_priority)]
     if query:
         patt = re.compile(re.escape(query), re.IGNORECASE)
         mask = (
@@ -206,14 +215,14 @@ if action == "View & Edit Repairs":
         )
         view_df = view_df[mask]
 
-    # --- Status chip column ---
+    # Status chip column
     view_df.insert(1, "Status ⬤", view_df["Status"].map(status_chip).fillna(""))
 
-    # --- Prepare clean unique columns ---
+    # Prepare clean unique columns
     editable_source = view_df.loc[:, ~view_df.columns.duplicated()].reset_index(drop=True)
 
-    # --- Editable table ---
-    st.caption("Click directly in any cell to edit — changes save automatically.")
+    # Editable table
+    st.caption("Click directly in any cell to edit - changes save automatically.")
     edited_df = st.data_editor(
         editable_source,
         use_container_width=True,
@@ -241,7 +250,7 @@ if action == "View & Edit Repairs":
         key="editable_repairs",
     )
 
-    # --- Auto-save changes instantly ---
+    # Auto-save changes
     if not edited_df.equals(view_df.reset_index(drop=True)):
         for _, row in edited_df.iterrows():
             ticket_id = row["Ticket ID"]
@@ -261,16 +270,16 @@ if action == "View & Edit Repairs":
                 ]:
                     st.session_state.df_repairs.loc[mask, col] = row[col]
 
-                # --- Completed-Date round-trip logic ---
+                # Completed date logic
                 if row["Status"] == "Completed":
                     st.session_state.df_repairs.loc[mask, "Completed Date"] = date.today().strftime("%m/%d/%Y")
                 else:
                     st.session_state.df_repairs.loc[mask, "Completed Date"] = ""
 
         save_df_csv(REPAIRS_CSV, st.session_state.df_repairs)
-        st.toast("✅ Changes saved automatically", icon="💾")
+        st.toast("Changes saved automatically", icon="💾")
 
-    # --- Totals (Downtime counted once per Ticket ID) ---
+    # Totals (Downtime counted once per Ticket ID)
     total_repairs = len(view_df)
     total_cost = pd.to_numeric(view_df["Cost"], errors="coerce").sum()
     unique_tickets = view_df.drop_duplicates(subset=["Ticket ID"])
@@ -359,7 +368,7 @@ elif action == "Add & Update Ticket":
         save_df_csv(REPAIRS_CSV, st.session_state.df_repairs)
         st.success(f"Ticket {ticket_id} saved with {len(new_alerts)} alerts!")
 
-    # --- Show existing alerts for this ticket (edit only, no delete) ---
+    # Show existing alerts for this ticket (edit only, no delete)
     existing = st.session_state.df_repairs[st.session_state.df_repairs["Ticket ID"] == ticket_id]
     if not existing.empty:
         st.divider()
