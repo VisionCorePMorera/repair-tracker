@@ -100,9 +100,10 @@ def load_df_csv(path: Path, default_df: pd.DataFrame):
     return default_df.copy()
 
 def status_chip(s):
-    s = (s or "").strip()
-    mapping = {"Open":"🟡 Open","Scheduled":"🔵 Scheduled","Completed":"🟢 Completed"}
-    return mapping.get(s,s)
+    # Always convert to string, handle NaN and numeric safely
+    s = str(s).strip() if not pd.isna(s) else ""
+    mapping = {"Open": "🟡 Open", "Scheduled": "🔵 Scheduled", "Completed": "🟢 Completed"}
+    return mapping.get(s, s)
 
 def calc_table_height(n_rows, max_visible=30):
     return 40 + (min(n_rows,max_visible)*28)
@@ -494,4 +495,5 @@ elif action == "Trend":
             st.metric("Total Repairs",len(u_df))
             top = u_df["Alert Type/Issue"].value_counts().head(5).reset_index()
             st.dataframe(top,use_container_width=True)
+
 
