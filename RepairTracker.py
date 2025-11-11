@@ -305,96 +305,108 @@ elif action == "Add & Update Ticket":
     else:
         ticket_id = int(ticket_choice)
 
-    c1,c2 = st.columns(2)
-    with c1:
-        unit = st.selectbox("Unit #", [""] + df_trucks["Truck #"].tolist())
-        ymm = truck_to_ymm.get(unit,"")
-        st.text_input("YMM", value=ymm, disabled=True)
-        assigned = st.text_input("Assigned To")
-    with c2:
-        priority = st.selectbox("Priority", ["Tier 1 (Critical)","Tier 2 (High)","Tier 3 (PM)","Tier 4 (Non-Critical)"])
-        overall_status = st.selectbox("Overall Ticket Status", ["Open","Scheduled","Completed"])
-        notes_main = st.text_area("Notes (applies to all)")
+    # -------------------------------------------------------
+    # COLLAPSIBLE: Ticket Info
+    # -------------------------------------------------------
+    with st.expander("🎫 Ticket Information", expanded=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            unit = st.selectbox("Unit #", [""] + df_trucks["Truck #"].tolist())
+            ymm = truck_to_ymm.get(unit, "")
+            st.text_input("YMM", value=ymm, disabled=True)
+            assigned = st.text_input("Assigned To")
+        with c2:
+            priority = st.selectbox("Priority", ["Tier 1 (Critical)", "Tier 2 (High)", "Tier 3 (PM)", "Tier 4 (Non-Critical)"])
+            overall_status = st.selectbox("Overall Ticket Status", ["Open", "Scheduled", "Completed"])
+            notes_main = st.text_area("Notes (applies to all)")
 
-    st.caption("Add Multiple Alerts to This Ticket")
-
-    # Editable alert table with custom type support (uses managed alert_options)
-    new_alerts = st.data_editor(
-        pd.DataFrame(columns=["Alert Type/Issue","Custom Type","Description","Mileage","Status"]),
-        use_container_width=True,
-        num_rows="dynamic",
-        column_config={
-            "Alert Type/Issue": st.column_config.SelectboxColumn("Alert Type/Issue", options=alert_options),
-            "Custom Type": st.column_config.TextColumn("Custom Type (if Other selected)"),
-            "Description": st.column_config.TextColumn("Description"),
-            "Mileage": st.column_config.NumberColumn("Mileage", min_value=0, step=1),
-            "Status": st.column_config.SelectboxColumn("Status", options=["Open","Scheduled","Completed"])
-        },
-        height=280
-    )
-
-    if st.button("💾 Save Ticket & Alerts"):
-        for _, row in new_alerts.iterrows():
-            alert_type = str(row["Alert Type/Issue"]).strip()
-            if not alert_type:
-                continue
-            # Allow custom text if "Other (type below)" is selected
-            if alert_type == "Other (type below)" and str(row.get("Custom Type", "")).strip():
-                alert_type = str(row["Custom Type"]).strip()
-
-            completed_date = date.today().strftime("%m/%d/%Y") if row["Status"] == "Completed" else ""
-            new_row = {
-                "Ticket ID": ticket_id,
-                "Unit #": unit,
-                "YMM": ymm,
-                "Alert Type/Issue": alert_type,
-                "Description": row["Description"],
-                "Mileage": int(row["Mileage"] or 0),
-                "Date": date.today().strftime("%m/%d/%Y"),
-                "Scheduled": date.today().strftime("%m/%d/%Y") if row["Status"]=="Scheduled" else "",
-                "Priority Tier (1/2/3)": priority,
-                "Assigned to": assigned,
-                "Status": row["Status"],
-                "Open/Miles at": date.today().strftime("%m/%d/%Y"),
-                "Downtime (Days)": 0,
-                "Cost": 0.0,
-                "Completed Date": completed_date,
-                "Notes": notes_main
-            }
-            st.session_state.df_repairs = pd.concat(
-                [st.session_state.df_repairs, pd.DataFrame([new_row])],
-                ignore_index=True
-            )
-        save_df_csv(REPAIRS_CSV, st.session_state.df_repairs)
-        st.success(f"Ticket {ticket_id} saved with {len(new_alerts)} alerts!")
-
-    # Show existing alerts for this ticket (edit only, no delete)
+    # -------------------------------------------------------
+    # COLLAPSIBLE: Existing Alerts
+    # -------------------------------------------------------
     existing = st.session_state.df_repairs[st.session_state.df_repairs["Ticket ID"] == ticket_id]
     if not existing.empty:
-        st.divider()
-        st.caption("Existing Alerts for This Ticket")
-        edit_existing = st.data_editor(
-            existing.reset_index().rename(columns={"index":"RowID"}),
+        with st.expander("📋 Existing Alerts for This Ticket", expanded=True):
+            # Ensure no duplicate "RowID" columns
+            existing_clean = existing.copy().reset_index()
+            if "RowID" in existing_clean.columns:
+                existing_clean.rename(columns={"RowID": "RowID_Orig"}, inplace=True)
+            existing_clean.rename(columns={"index": "RowID"}, inplace=True)
+
+            edit_existing = st.data_editor(
+                existing_clean,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "RowID": st.column_config.NumberColumn("RowID", disabled=True),
+                    "Status": st.column_config.SelectboxColumn("Status", options=["Open", "Scheduled", "Completed"]),
+                    "Cost": st.column_config.NumberColumn("Cost", min_value=0.0, step=1.0, format="$%.2f"),
+                    "Notes": st.column_config.TextColumn("Notes"),
+                },
+                height=calc_table_height(len(existing_clean), 20),
+            )
+            if st.button("💾 Update Existing Alerts"):
+                for _, row in edit_existing.iterrows():
+                    rid = row["RowID"]
+                    st.session_state.df_repairs.loc[rid, edit_existing.columns] = row.values
+                    if row["Status"] == "Completed" and not str(row["Completed Date"]).strip():
+                        st.session_state.df_repairs.at[rid, "Completed Date"] = date.today().strftime("%m/%d/%Y")
+                    elif row["Status"] != "Completed":
+                        st.session_state.df_repairs.at[rid, "Completed Date"] = ""
+                save_df_csv(REPAIRS_CSV, st.session_state.df_repairs)
+                st.success("Existing alerts updated!")
+
+    # -------------------------------------------------------
+    # COLLAPSIBLE: Add New Alerts
+    # -------------------------------------------------------
+    with st.expander("➕ Add New Alerts to This Ticket", expanded=False):
+        st.caption("Add multiple alerts for this ticket below.")
+        new_alerts = st.data_editor(
+            pd.DataFrame(columns=["Alert Type/Issue", "Custom Type", "Description", "Mileage", "Status"]),
             use_container_width=True,
-            hide_index=True,
+            num_rows="dynamic",
             column_config={
-                "RowID": st.column_config.NumberColumn("RowID", disabled=True),
-                "Status": st.column_config.SelectboxColumn("Status", options=["Open","Scheduled","Completed"]),
-                "Cost": st.column_config.NumberColumn("Cost", min_value=0.0, step=1.0, format="$%.2f"),
-                "Notes": st.column_config.TextColumn("Notes")
+                "Alert Type/Issue": st.column_config.SelectboxColumn("Alert Type/Issue", options=alert_options),
+                "Custom Type": st.column_config.TextColumn("Custom Type (if Other selected)"),
+                "Description": st.column_config.TextColumn("Description"),
+                "Mileage": st.column_config.NumberColumn("Mileage", min_value=0, step=1),
+                "Status": st.column_config.SelectboxColumn("Status", options=["Open", "Scheduled", "Completed"]),
             },
-            height=calc_table_height(len(existing),20)
+            height=280,
         )
-        if st.button("💾 Update Existing Alerts"):
-            for _, row in edit_existing.iterrows():
-                rid = row["RowID"]
-                st.session_state.df_repairs.loc[rid, edit_existing.columns] = row.values
-                if row["Status"] == "Completed" and not str(row["Completed Date"]).strip():
-                    st.session_state.df_repairs.at[rid,"Completed Date"] = date.today().strftime("%m/%d/%Y")
-                elif row["Status"] != "Completed":
-                    st.session_state.df_repairs.at[rid,"Completed Date"] = ""
+
+        if st.button("💾 Save Ticket & Alerts"):
+            for _, row in new_alerts.iterrows():
+                alert_type = str(row["Alert Type/Issue"]).strip()
+                if not alert_type:
+                    continue
+                if alert_type == "Other (type below)" and str(row.get("Custom Type", "")).strip():
+                    alert_type = str(row["Custom Type"]).strip()
+
+                completed_date = date.today().strftime("%m/%d/%Y") if row["Status"] == "Completed" else ""
+                new_row = {
+                    "Ticket ID": ticket_id,
+                    "Unit #": unit,
+                    "YMM": ymm,
+                    "Alert Type/Issue": alert_type,
+                    "Description": row["Description"],
+                    "Mileage": int(row["Mileage"] or 0),
+                    "Date": date.today().strftime("%m/%d/%Y"),
+                    "Scheduled": date.today().strftime("%m/%d/%Y") if row["Status"] == "Scheduled" else "",
+                    "Priority Tier (1/2/3)": priority,
+                    "Assigned to": assigned,
+                    "Status": row["Status"],
+                    "Open/Miles at": date.today().strftime("%m/%d/%Y"),
+                    "Downtime (Days)": 0,
+                    "Cost": 0.0,
+                    "Completed Date": completed_date,
+                    "Notes": notes_main,
+                }
+                st.session_state.df_repairs = pd.concat(
+                    [st.session_state.df_repairs, pd.DataFrame([new_row])],
+                    ignore_index=True,
+                )
             save_df_csv(REPAIRS_CSV, st.session_state.df_repairs)
-            st.success("Existing alerts updated!")
+            st.success(f"Ticket {ticket_id} saved with {len(new_alerts)} alerts!")
 
 # -------------------------------------------------------
 # MANAGE TRUCKS
@@ -482,3 +494,4 @@ elif action == "Trend":
             st.metric("Total Repairs",len(u_df))
             top = u_df["Alert Type/Issue"].value_counts().head(5).reset_index()
             st.dataframe(top,use_container_width=True)
+
