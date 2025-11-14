@@ -59,23 +59,24 @@ authenticator.logout("Logout", "sidebar")
 st.caption(f"Signed in as {name}")
 
 # -------------------------------------------------------
-# APP PATHS
+# APP PATHS (Render Disk)
 # -------------------------------------------------------
 st.title("🔧 Repair Tracker")
-APP_DIR = Path(__file__).parent
-REPAIRS_CSV = APP_DIR / "repairs_data.csv"
-TRUCKS_CSV = APP_DIR / "trucks_data.csv"
-ALERTS_CSV = APP_DIR / "alerts_data.csv"
-BACKUPS_DIR = APP_DIR / "Backups"
-BACKUPS_DIR.mkdir(exist_ok=True)
 
-# Default alert types (used as seed only)
-ALERT_TYPES = [
-    "Oil Change - PM Service","Truck Inspection","Radiator","Electrical","Brakes","Tires",
-    "Hydraulic / PTO","Tool Boxes","Winch Cable","Coolant Hose","Air Hose","Air Bags",
-    "Shocks","CARB Smog Test","Transmission","Steering","Suspension","In-Cab","Misc.","Fuel",
-    "Other (type below)"
-]
+APP_DIR = Path(__file__).parent
+
+# Render persistent disk mount
+DATA_DIR = Path("/var/data")
+DATA_DIR.mkdir(exist_ok=True)
+
+# CSV files stored on the disk (persistent across deploys)
+REPAIRS_CSV = DATA_DIR / "repairs_data.csv"
+TRUCKS_CSV = DATA_DIR / "trucks_data.csv"
+ALERTS_CSV = DATA_DIR / "alerts_data.csv"
+
+# Backups folder on disk
+BACKUPS_DIR = DATA_DIR / "Backups"
+BACKUPS_DIR.mkdir(exist_ok=True)
 
 # -------------------------------------------------------
 # UTILS
@@ -495,5 +496,6 @@ elif action == "Trend":
             st.metric("Total Repairs",len(u_df))
             top = u_df["Alert Type/Issue"].value_counts().head(5).reset_index()
             st.dataframe(top,use_container_width=True)
+
 
 
