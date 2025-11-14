@@ -58,6 +58,14 @@ if not auth_status:
 authenticator.logout("Logout", "sidebar")
 st.caption(f"Signed in as {name}")
 
+# Default alert types (used as seed only)
+ALERT_TYPES = [
+    "Oil Change - PM Service","Truck Inspection","Radiator","Electrical","Brakes","Tires",
+    "Hydraulic / PTO","Tool Boxes","Winch Cable","Coolant Hose","Air Hose","Air Bags",
+    "Shocks","CARB Smog Test","Transmission","Steering","Suspension","In-Cab","Misc.","Fuel",
+    "Other (type below)"
+]
+    
 # -------------------------------------------------------
 # APP PATHS (Render Disk)
 # -------------------------------------------------------
@@ -77,6 +85,8 @@ ALERTS_CSV = DATA_DIR / "alerts_data.csv"
 # Backups folder on disk
 BACKUPS_DIR = DATA_DIR / "Backups"
 BACKUPS_DIR.mkdir(exist_ok=True)
+
+default_alerts_df = pd.DataFrame({"Alert Type": ALERT_TYPES})
 
 # -------------------------------------------------------
 # UTILS
@@ -496,6 +506,7 @@ elif action == "Trend":
             st.metric("Total Repairs",len(u_df))
             top = u_df["Alert Type/Issue"].value_counts().head(5).reset_index()
             st.dataframe(top,use_container_width=True)
+
 
 
 
